@@ -83,6 +83,14 @@ python3 -m pip install -e .
 swift build --arch arm64
 ```
 
+Run the beginner example:
+
+```bash
+examples/calculator_quickstart.py
+```
+
+It opens Calculator, finds buttons from the Accessibility tree, clicks `9 + 1`, presses Return, and prints the display value.
+
 Run the basic Calculator stream check:
 
 ```bash
@@ -136,6 +144,16 @@ For text entry into the focused control:
 ```python
 actions.type_text("Hello World")
 ```
+
+## Examples
+
+The `examples/` directory is for short scripts that are easy to read before touching the lower-level daemon protocol.
+
+```bash
+examples/calculator_quickstart.py
+```
+
+The integration checks in `scripts/` are more assertive: they verify behavior and raise errors if the live app state does not match expectations.
 
 ## Daemon Protocol
 
@@ -242,7 +260,8 @@ Run a full local pass:
 
 ```bash
 swift build --arch arm64
-python3 -m compileall axtree_api
+python3 -m compileall axtree_api examples scripts
+examples/calculator_quickstart.py
 scripts/test_calculator_state.py
 scripts/test_calculator_click.py
 scripts/test_python_calculator.py
@@ -258,12 +277,18 @@ These tests manipulate foreground macOS apps, so run them sequentially.
 
 ```text
 .
+|-- .github/workflows/ci.yml
+|-- CONTRIBUTING.md
+|-- LICENSE
 |-- Package.swift
 |-- Sources/AXTreeDaemon/main.swift
+|-- SECURITY.md
 |-- axtree_api/
 |   |-- __init__.py
 |   |-- core.py
 |   `-- vision.py
+|-- examples/
+|   `-- calculator_quickstart.py
 |-- scripts/
 |   |-- evaluate_notes_e2e.py
 |   |-- test_calculator_click.py
@@ -274,6 +299,21 @@ These tests manipulate foreground macOS apps, so run them sequentially.
 |   `-- test_vision_fallback.py
 `-- pyproject.toml
 ```
+
+## Open Source Notes
+
+This project is released under the MIT License. See `LICENSE`.
+
+Before contributing, read `CONTRIBUTING.md` for setup, test, and commit guidance. For safety expectations and vulnerability reporting, read `SECURITY.md`.
+
+CI runs on GitHub-hosted macOS and covers:
+
+- Python package installation.
+- Python compile checks for `axtree_api`, `examples`, and `scripts`.
+- Swift daemon build.
+- Public Python API import checks.
+
+The real GUI integration scripts are intentionally not run in CI because they require foreground macOS apps and Accessibility permissions.
 
 ## Current Limitations
 
