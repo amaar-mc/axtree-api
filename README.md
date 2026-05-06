@@ -114,7 +114,14 @@ Example commands:
 
 ## Vision Fallback
 
-Most useful controls are exposed directly by Accessibility. For unlabeled icon-only controls, AXTree can crop the element's bounds with `screencapture -R` and hand that image to your own vision provider:
+Most useful controls are exposed directly by Accessibility. For unlabeled icon-only controls, AXTree can crop the element's bounds with `screencapture -R` and hand that image to your own vision provider.
+
+See `examples/vision_provider_example.py` for a complete sample that:
+
+- finds an unlabeled node
+- captures its bounds with `capture_element_screenshot()`
+- passes the image path into a clearly stubbed provider function
+- explains where a real local VLM or hosted Vision API call would go
 
 ```python
 from axtree_api import capture_element_screenshot, get_semantic_label_from_vision
@@ -123,7 +130,7 @@ image_path = capture_element_screenshot(element)
 label = get_semantic_label_from_vision(image_path, provider=my_vision_provider)
 ```
 
-No vision model is bundled.
+No vision model is bundled, and secrets or API keys should be kept out of the repository.
 
 ## Verify
 
