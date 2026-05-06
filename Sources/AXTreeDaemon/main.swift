@@ -17,6 +17,142 @@ private let actionableRoles: Set<String> = [
     kAXCheckBoxRole as String
 ]
 
+private let keyCodeMap: [String: CGKeyCode] = [
+    "a": 0,
+    "s": 1,
+    "d": 2,
+    "f": 3,
+    "h": 4,
+    "g": 5,
+    "z": 6,
+    "x": 7,
+    "c": 8,
+    "v": 9,
+    "b": 11,
+    "q": 12,
+    "w": 13,
+    "e": 14,
+    "r": 15,
+    "y": 16,
+    "t": 17,
+    "1": 18,
+    "2": 19,
+    "3": 20,
+    "4": 21,
+    "6": 22,
+    "5": 23,
+    "=": 24,
+    "equal": 24,
+    "equals": 24,
+    "9": 25,
+    "7": 26,
+    "-": 27,
+    "minus": 27,
+    "8": 28,
+    "0": 29,
+    "]": 30,
+    "rightbracket": 30,
+    "o": 31,
+    "u": 32,
+    "[": 33,
+    "leftbracket": 33,
+    "i": 34,
+    "p": 35,
+    "return": 36,
+    "enter": 36,
+    "l": 37,
+    "j": 38,
+    "'": 39,
+    "quote": 39,
+    "k": 40,
+    ";": 41,
+    "semicolon": 41,
+    "\\": 42,
+    "backslash": 42,
+    ",": 43,
+    "comma": 43,
+    "/": 44,
+    "slash": 44,
+    "n": 45,
+    "m": 46,
+    ".": 47,
+    "period": 47,
+    "tab": 48,
+    "space": 49,
+    "spacebar": 49,
+    "`": 50,
+    "grave": 50,
+    "backtick": 50,
+    "delete": 51,
+    "backspace": 51,
+    "escape": 53,
+    "esc": 53,
+    "command": 55,
+    "shift": 56,
+    "capslock": 57,
+    "option": 58,
+    "control": 59,
+    "rightshift": 60,
+    "rightoption": 61,
+    "rightcontrol": 62,
+    "function": 63,
+    "fn": 63,
+    "f17": 64,
+    "volumeup": 72,
+    "volumedown": 73,
+    "mute": 74,
+    "keypaddecimal": 65,
+    "keypadmultiply": 67,
+    "keypadplus": 69,
+    "keypadclear": 71,
+    "keypaddivide": 75,
+    "keypadenter": 76,
+    "keypadminus": 78,
+    "f18": 79,
+    "f19": 80,
+    "keypadequals": 81,
+    "keypad0": 82,
+    "keypad1": 83,
+    "keypad2": 84,
+    "keypad3": 85,
+    "keypad4": 86,
+    "keypad5": 87,
+    "keypad6": 88,
+    "keypad7": 89,
+    "f20": 90,
+    "keypad8": 91,
+    "keypad9": 92,
+    "f5": 96,
+    "f6": 97,
+    "f7": 98,
+    "f3": 99,
+    "f8": 100,
+    "f9": 101,
+    "f11": 103,
+    "f13": 105,
+    "f16": 106,
+    "f14": 107,
+    "f10": 109,
+    "f12": 111,
+    "f15": 113,
+    "help": 114,
+    "home": 115,
+    "pageup": 116,
+    "forwarddelete": 117,
+    "end": 119,
+    "f2": 120,
+    "pagedown": 121,
+    "f1": 122,
+    "left": 123,
+    "leftarrow": 123,
+    "right": 124,
+    "rightarrow": 124,
+    "down": 125,
+    "downarrow": 125,
+    "up": 126,
+    "uparrow": 126
+]
+
 private struct ElementNode: Encodable {
     let id: String
     let role: String
@@ -52,6 +188,9 @@ private struct CommandPayload: Decodable {
     let action: String
     let coordinates: [Double]?
     let text: String?
+    let key: String?
+    let keyCode: UInt16?
+    let modifiers: [String]?
 }
 
 private struct CommandResultPayload: Encodable {
@@ -250,6 +389,27 @@ private final class AXTreeDaemon: NSObject {
                 scheduleSnapshot(reason: "command.type")
             }
 
+        case "keyPress":
+            guard let keyCode = keyCode(for: command) else {
+                emitCommandResult(
+                    action: command.action,
+                    ok: false,
+                    message: "KeyPress command requires a known key or numeric keyCode."
+                )
+                return
+            }
+
+            let modifiers = eventFlags(for: command.modifiers ?? [])
+            let ok = postKeyPress(keyCode: keyCode, modifiers: modifiers)
+            emitCommandResult(
+                action: command.action,
+                ok: ok,
+                message: ok ? "Pressed keyCode \(keyCode)." : "Unable to press keyCode \(keyCode)."
+            )
+            if ok {
+                scheduleSnapshot(reason: "command.keyPress")
+            }
+
         default:
             emitCommandResult(
                 action: command.action,
@@ -354,6 +514,74 @@ private final class AXTreeDaemon: NSObject {
             )
         }
         event.post(tap: .cghidEventTap)
+        return true
+    }
+
+    private func keyCode(for command: CommandPayload) -> CGKeyCode? {
+        if let keyCode = command.keyCode {
+            return CGKeyCode(keyCode)
+        }
+
+        guard let key = command.key else {
+            return nil
+        }
+
+        return keyCodeMap[normalizedKeyName(key)]
+    }
+
+    private func normalizedKeyName(_ key: String) -> String {
+        key.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: " ", with: "")
+    }
+
+    private func eventFlags(for modifiers: [String]) -> CGEventFlags {
+        var flags = CGEventFlags()
+
+        for modifier in modifiers {
+            switch normalizedKeyName(modifier) {
+            case "command", "cmd", "meta":
+                flags.insert(.maskCommand)
+            case "shift":
+                flags.insert(.maskShift)
+            case "option", "alt":
+                flags.insert(.maskAlternate)
+            case "control", "ctrl":
+                flags.insert(.maskControl)
+            case "function", "fn":
+                flags.insert(.maskSecondaryFn)
+            default:
+                continue
+            }
+        }
+
+        return flags
+    }
+
+    private func postKeyPress(keyCode: CGKeyCode, modifiers: CGEventFlags) -> Bool {
+        guard let source = CGEventSource(stateID: .combinedSessionState),
+              let keyDown = CGEvent(
+                keyboardEventSource: source,
+                virtualKey: keyCode,
+                keyDown: true
+              ),
+              let keyUp = CGEvent(
+                keyboardEventSource: source,
+                virtualKey: keyCode,
+                keyDown: false
+              )
+        else {
+            return false
+        }
+
+        source.localEventsSuppressionInterval = 0
+        keyDown.flags = modifiers
+        keyUp.flags = modifiers
+        keyDown.post(tap: .cghidEventTap)
+        usleep(10_000)
+        keyUp.post(tap: .cghidEventTap)
         return true
     }
 

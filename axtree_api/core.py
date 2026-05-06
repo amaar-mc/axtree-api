@@ -8,7 +8,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 
 class DaemonError(RuntimeError):
@@ -331,3 +331,27 @@ class ActionAPI:
 
     def type_text(self, text: str, *, timeout: float = 5.0) -> CommandResult:
         return self.type(text, timeout=timeout)
+
+    def key_press(
+        self,
+        key: str | None = None,
+        *,
+        key_code: int | None = None,
+        modifiers: Sequence[str] | None = None,
+        timeout: float = 5.0,
+    ) -> CommandResult:
+        if key is None and key_code is None:
+            raise ValueError("key_press requires either key or key_code.")
+
+        payload: dict[str, Any] = {"action": "keyPress"}
+        if key is not None:
+            payload["key"] = key
+        if key_code is not None:
+            payload["keyCode"] = key_code
+        if modifiers:
+            payload["modifiers"] = list(modifiers)
+
+        result = self.manager.send_command(payload, timeout=timeout)
+        if not result.ok:
+            raise DaemonError(result.message)
+        return result
