@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/axtree-logo-dark.png" alt="AXTree logo: an accessibility tree of connected UI nodes" width="420">
+</p>
+
 # AXTree API
 
 Event-driven macOS computer use for agents.
@@ -285,6 +289,9 @@ These tests manipulate foreground macOS apps, so run them sequentially.
 |-- Package.swift
 |-- Sources/AXTreeDaemon/main.swift
 |-- SECURITY.md
+|-- assets/
+|   |-- axtree-logo-dark.png
+|   `-- axtree-logo-light.png
 |-- axtree_api/
 |   |-- __init__.py
 |   |-- core.py
