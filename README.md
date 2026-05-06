@@ -4,6 +4,9 @@
 
 # AXTree API
 
+[![CI](https://github.com/amaar-mc/axtree-api/actions/workflows/ci.yml/badge.svg)](https://github.com/amaar-mc/axtree-api/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Event-driven macOS computer use for agents.
 
 AXTree API turns the macOS Accessibility tree into a small, real-time action map. A Swift daemon listens for UI changes, waits until the interface settles, emits a filtered JSON tree of interactive controls, and accepts action commands. A Python package runs the daemon, keeps the latest UI state in memory, and exposes a clean API for clicking, typing, pressing keys, and falling back to cropped screenshots when Accessibility labels are missing.
