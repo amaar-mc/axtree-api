@@ -129,6 +129,7 @@ class DaemonManager:
         if not binary.exists():
             raise DaemonError(f"Swift daemon binary does not exist: {binary}")
 
+        self._reset_runtime_state()
         self._stop_requested.clear()
         self.process = subprocess.Popen(
             [str(binary)],
@@ -229,7 +230,23 @@ class DaemonManager:
                 payload = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if not isinstance(payload, dict):
+                continue
             self._handle_payload(payload)
+
+    def _reset_runtime_state(self) -> None:
+        self.latest_state = None
+        self._stderr_lines.clear()
+        self._drain_queue(self._command_results)
+        self._drain_queue(self._errors)
+
+    @staticmethod
+    def _drain_queue(target: queue.Queue[Any]) -> None:
+        while True:
+            try:
+                target.get_nowait()
+            except queue.Empty:
+                return
 
     def _read_stderr(self) -> None:
         process = self.process

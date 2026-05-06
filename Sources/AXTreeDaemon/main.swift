@@ -767,7 +767,8 @@ private final class AXTreeDaemon: NSObject {
     private func elementAttribute(_ element: AXUIElement, _ attribute: CFString) -> AXUIElement? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success,
-              let unwrapped = value
+              let unwrapped = value,
+              CFGetTypeID(unwrapped) == AXUIElementGetTypeID()
         else {
             return nil
         }
@@ -788,7 +789,11 @@ private final class AXTreeDaemon: NSObject {
         }
 
         return array.compactMap { item in
-            item as! AXUIElement?
+            let value = item as CFTypeRef
+            guard CFGetTypeID(value) == AXUIElementGetTypeID() else {
+                return nil
+            }
+            return (value as! AXUIElement)
         }
     }
 
