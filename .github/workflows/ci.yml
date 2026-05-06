@@ -20,7 +20,30 @@ jobs:
           python-version: "3.11"
 
       - name: Check whitespace
-        run: git diff --check
+        run: |
+          python - <<'PY'
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          files = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+          failures = []
+          for name in files:
+              path = Path(name)
+              try:
+                  text = path.read_text()
+              except UnicodeDecodeError:
+                  continue
+              for line_number, line in enumerate(text.splitlines(), start=1):
+                  if line.rstrip(" \t") != line:
+                      failures.append(f"{name}:{line_number}: trailing whitespace")
+              if text and not text.endswith("\n"):
+                  failures.append(f"{name}: missing final newline")
+
+          if failures:
+              print("\n".join(failures))
+              sys.exit(1)
+          PY
 
       - name: Install Python package
         run: python -m pip install -e .

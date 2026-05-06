@@ -13,7 +13,7 @@ AXTree API can observe and control real macOS applications through Accessibility
 
 ## Reporting Vulnerabilities
 
-This project is not yet tied to a public security mailbox. Until one exists, please use GitHub private vulnerability reporting if it is enabled. If it is not enabled, open a minimal public issue asking for a private contact path and avoid posting exploit details. Include:
+This project is not yet tied to a public security mailbox. Until one exists, use GitHub private vulnerability reporting if it is enabled. If it is not enabled, open a minimal public issue asking for a private contact path and avoid posting exploit details. Include:
 
 - A short description of the vulnerability.
 - Steps to reproduce.

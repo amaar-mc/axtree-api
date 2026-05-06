@@ -8,8 +8,20 @@ version = "0.1.0"
 description = "Event-driven macOS Accessibility tree stream and action bridge."
 readme = "README.md"
 requires-python = ">=3.11"
+license = { file = "LICENSE" }
 authors = [
     { name = "AXTree API Contributors" }
+]
+keywords = ["accessibility", "automation", "computer-use", "macos", "agents"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: MacOS X",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Swift",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = []
 

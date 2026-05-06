@@ -6,6 +6,8 @@ AXTree API turns the macOS Accessibility tree into a small, real-time action map
 
 This is built for agent workflows where polling the whole screen is too slow and raw Accessibility output is too noisy.
 
+The project is a developer preview: the core loop works against real macOS apps today, while the API surface is still intentionally small.
+
 ## Why This Exists
 
 Most computer-use stacks spend too much time asking, "What is on screen right now?" AXTree API flips that around:
