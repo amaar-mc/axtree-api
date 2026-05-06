@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "axtree-api"
+version = "0.1.0"
+description = "Event-driven macOS Accessibility tree stream and action bridge."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "AXTree API Contributors" }
+]
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["axtree_api*"]
