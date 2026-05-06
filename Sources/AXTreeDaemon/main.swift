@@ -48,8 +48,23 @@ private struct ErrorPayload: Encodable {
     let timestamp: String
 }
 
+private struct CommandPayload: Decodable {
+    let action: String
+    let coordinates: [Double]?
+    let text: String?
+}
+
+private struct CommandResultPayload: Encodable {
+    let type: String
+    let action: String
+    let ok: Bool
+    let message: String
+    let timestamp: String
+}
+
 private final class AXTreeDaemon: NSObject {
     private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
     private var observer: AXObserver?
     private var observedAppElement: AXUIElement?
     private var observedPID: pid_t = 0
@@ -75,6 +90,7 @@ private final class AXTreeDaemon: NSObject {
         )
 
         attachToFrontmostApplication(reason: "startup")
+        startInputListener()
         RunLoop.main.run()
     }
 
@@ -162,6 +178,183 @@ private final class AXTreeDaemon: NSObject {
 
     fileprivate func handleAccessibilityNotification(_ notification: CFString) {
         scheduleSnapshot(reason: notification as String)
+    }
+
+    private func startInputListener() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            while let line = readLine() {
+                guard !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    continue
+                }
+
+                DispatchQueue.main.async {
+                    self?.handleCommandLine(line)
+                }
+            }
+        }
+    }
+
+    private func handleCommandLine(_ line: String) {
+        guard let data = line.data(using: .utf8) else {
+            emitCommandResult(action: "unknown", ok: false, message: "Command is not valid UTF-8.")
+            return
+        }
+
+        do {
+            let command = try decoder.decode(CommandPayload.self, from: data)
+            executeCommand(command)
+        } catch {
+            emitCommandResult(action: "unknown", ok: false, message: "Invalid command JSON: \(error).")
+        }
+    }
+
+    private func executeCommand(_ command: CommandPayload) {
+        switch command.action {
+        case "click":
+            guard let point = pointFromCoordinates(command.coordinates) else {
+                emitCommandResult(
+                    action: command.action,
+                    ok: false,
+                    message: "Click command requires coordinates as [x, y]."
+                )
+                return
+            }
+
+            let ok = performClick(at: point)
+            emitCommandResult(
+                action: command.action,
+                ok: ok,
+                message: ok ? "Clicked at (\(rounded(point.x)), \(rounded(point.y)))." : "Click failed at (\(rounded(point.x)), \(rounded(point.y)))."
+            )
+            if ok {
+                scheduleSnapshot(reason: "command.click")
+            }
+
+        case "type":
+            guard let text = command.text else {
+                emitCommandResult(
+                    action: command.action,
+                    ok: false,
+                    message: "Type command requires a text field."
+                )
+                return
+            }
+
+            let ok = postText(text)
+            emitCommandResult(
+                action: command.action,
+                ok: ok,
+                message: ok ? "Typed \(text.count) characters." : "Unable to type text."
+            )
+            if ok {
+                scheduleSnapshot(reason: "command.type")
+            }
+
+        default:
+            emitCommandResult(
+                action: command.action,
+                ok: false,
+                message: "Unsupported action: \(command.action)."
+            )
+        }
+    }
+
+    private func pointFromCoordinates(_ coordinates: [Double]?) -> CGPoint? {
+        guard let coordinates, coordinates.count == 2 else {
+            return nil
+        }
+
+        return CGPoint(x: coordinates[0], y: coordinates[1])
+    }
+
+    private func performClick(at point: CGPoint) -> Bool {
+        if pressAccessibilityElement(at: point) {
+            return true
+        }
+
+        return postMouseClick(at: point)
+    }
+
+    private func pressAccessibilityElement(at point: CGPoint) -> Bool {
+        let systemWide = AXUIElementCreateSystemWide()
+        var element: AXUIElement?
+        let hitTestError = AXUIElementCopyElementAtPosition(
+            systemWide,
+            Float(point.x),
+            Float(point.y),
+            &element
+        )
+
+        guard hitTestError == .success, let element else {
+            return false
+        }
+
+        let pressError = AXUIElementPerformAction(element, kAXPressAction as CFString)
+        return pressError == .success
+    }
+
+    private func postMouseClick(at point: CGPoint) -> Bool {
+        guard let source = CGEventSource(stateID: .combinedSessionState),
+              let mouseDown = CGEvent(
+                mouseEventSource: source,
+                mouseType: .leftMouseDown,
+                mouseCursorPosition: point,
+                mouseButton: .left
+              ),
+              let mouseUp = CGEvent(
+                mouseEventSource: source,
+                mouseType: .leftMouseUp,
+                mouseCursorPosition: point,
+                mouseButton: .left
+              )
+        else {
+            return false
+        }
+
+        source.localEventsSuppressionInterval = 0
+        mouseDown.post(tap: .cghidEventTap)
+        usleep(25_000)
+        mouseUp.post(tap: .cghidEventTap)
+        return true
+    }
+
+    private func postText(_ text: String) -> Bool {
+        guard let source = CGEventSource(stateID: .combinedSessionState) else {
+            return false
+        }
+
+        source.localEventsSuppressionInterval = 0
+
+        for character in text {
+            let utf16 = Array(String(character).utf16)
+            guard postUnicodeKey(utf16, source: source, keyDown: true),
+                  postUnicodeKey(utf16, source: source, keyDown: false)
+            else {
+                return false
+            }
+            usleep(5_000)
+        }
+
+        return true
+    }
+
+    private func postUnicodeKey(_ utf16: [UInt16], source: CGEventSource, keyDown: Bool) -> Bool {
+        guard let event = CGEvent(
+            keyboardEventSource: source,
+            virtualKey: 0,
+            keyDown: keyDown
+        ) else {
+            return false
+        }
+
+        utf16.withUnsafeBufferPointer { buffer in
+            event.keyboardSetUnicodeString(
+                stringLength: buffer.count,
+                unicodeString: buffer.baseAddress
+            )
+        }
+        event.post(tap: .cghidEventTap)
+        return true
     }
 
     private func scheduleSnapshot(reason: String) {
@@ -374,6 +567,17 @@ private final class AXTreeDaemon: NSObject {
     private func emitError(_ message: String) {
         let payload = ErrorPayload(
             type: "error",
+            message: message,
+            timestamp: isoTimestamp()
+        )
+        emitJSON(payload)
+    }
+
+    private func emitCommandResult(action: String, ok: Bool, message: String) {
+        let payload = CommandResultPayload(
+            type: "commandResult",
+            action: action,
+            ok: ok,
             message: message,
             timestamp: isoTimestamp()
         )
